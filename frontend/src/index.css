@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f6;
+  --line: #e2e8f0;
+  --text-1: #0f172a;
+  --text-2: #475569;
+  --text-3: #94a3b8;
+}
+
+.dark {
+  --bg: #090d14;
+  --surface: #111823;
+  --surface-2: #1a2332;
+  --line: #1f2937;
+  --text-1: #f9fafb;
+  --text-2: #9ca3af;
+  --text-3: #6b7280;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg text-txt-1 font-body antialiased;
+}
+
+::selection {
+  background: rgba(59, 130, 246, 0.35);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+}
+
+@layer components {
+  .card {
+    @apply bg-surface border border-line rounded-xl;
+  }
+  .card-hover {
+    @apply transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-gray-600;
+  }
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-blue-500 to-violet-500 px-4 py-2 text-sm font-medium text-white transition-opacity duration-150 hover:opacity-90 disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 rounded-md border border-line bg-transparent px-4 py-2 text-sm font-medium text-txt-1 transition-colors duration-150 hover:bg-surface-2 disabled:opacity-50;
+  }
+  .input-base {
+    @apply w-full rounded-md border border-line bg-bg px-3 py-2 text-sm text-txt-1 outline-none transition-colors duration-150 placeholder:text-txt-3 focus:border-accent;
+  }
+  .meta-label {
+    @apply font-mono text-xs uppercase tracking-[0.1em] text-txt-2;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-up {
+  animation: fadeUp 0.35s ease-out both;
+}
