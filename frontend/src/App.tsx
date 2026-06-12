@@ -14,6 +14,10 @@ import SimulationLab from "./pages/SimulationLab";
 import ResearchFramework from "./pages/ResearchFramework";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import DataIngestion from "./pages/DataIngestion";
+import PropertyRisk from "./pages/PropertyRisk";
+import EconomicImpact from "./pages/EconomicImpact";
+import Ecosystem from "./pages/Ecosystem";
 
 type ThemeCtx = { theme: "dark" | "light"; toggleTheme: () => void };
 const ThemeContext = createContext<ThemeCtx>({ theme: "dark", toggleTheme: () => {} });
@@ -39,6 +43,10 @@ export default function App() {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/accounts/:accountId" element={<AccountDetail />} />
           <Route path="/graph" element={<GraphAnalytics />} />
+          <Route path="/properties" element={<PropertyRisk />} />
+          <Route path="/economics" element={<EconomicImpact />} />
+          <Route path="/ecosystem" element={<Ecosystem />} />
+          <Route path="/ingestion" element={<DataIngestion />} />
           <Route path="/threat-intel" element={<ThreatIntel />} />
           <Route path="/cases" element={<Cases />} />
           <Route path="/cases/:caseId" element={<CaseDetail />} />

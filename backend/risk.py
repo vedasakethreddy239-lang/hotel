@@ -148,3 +148,51 @@ def compute_risk(flags: dict, days_between: Optional[int] = None) -> dict:
         "breakdown": breakdown,
         "triggered": [b for b in breakdown if b["triggered"]],
     }
+
+
+def build_narrative(account: dict, result: dict) -> str:
+    """Plain-English 'Why was this flagged?' explanation for analysts."""
+    triggered = sorted(result["triggered"], key=lambda t: -t["weight"])
+    risky = [t for t in triggered if t["weight"] > 0]
+    protective = [t for t in triggered if t["weight"] < 0]
+    aid = account.get("account_id", "This account")
+    status = result["risk_status"]
+
+    if not risky:
+        base = (
+            f"{aid} scored {result['risk_score']}/100 ({status}). No anomalous signals were "
+            "observed in its recent activity."
+        )
+        if protective:
+            base += " Protective factors — " + ", ".join(p["label"].lower() for p in protective) + \
+                    " — further reduce takeover likelihood."
+        return base
+
+    parts = [
+        f"{aid} was flagged {status} risk with a composite score of {result['risk_score']}/100."
+    ]
+    top = risky[0]
+    parts.append(
+        f"The strongest contributor is \u201c{top['label']}\u201d (+{top['weight']}): {top['description']}"
+    )
+    if len(risky) > 1:
+        others = ", ".join(f"{t['label'].lower()} (+{t['weight']})" for t in risky[1:4])
+        parts.append(f"Supporting signals include {others}.")
+    if any(t["signal"] == "redemption_within_48h" for t in risky):
+        days = account.get("days_between_change_and_booking")
+        parts.append(
+            f"Critically, a redemption occurred within {days if days is not None else '<2'} day(s) of a profile "
+            "change — the hallmark sequence of loyalty account takeover (lock out the owner, then drain points)."
+        )
+    tiers = sorted({t["ecosystem_tier"] for t in risky if t["ecosystem_tier"] > 0})
+    if tiers:
+        parts.append(
+            "Mapped fraud-ecosystem activity spans tier" + ("s " if len(tiers) > 1 else " ") +
+            ", ".join(str(t) for t in tiers) + " of the four-tier model."
+        )
+    if protective:
+        parts.append(
+            "Mitigating factors: " + ", ".join(f"{p['label'].lower()} ({p['weight']})" for p in protective) + "."
+        )
+    parts.append(f"Recommended action: {result['recommended_action']}")
+    return " ".join(parts)

@@ -45,6 +45,7 @@ export interface Account {
 
 export interface AccountDetailData extends Account {
   risk_explanation: RiskResult;
+  narrative: string;
   related_cases: CaseItem[];
 }
 
@@ -172,4 +173,153 @@ export interface RiskSignalsResponse {
   signals: SignalInfo[];
   risk_tiers: { name: string; min: number; max: number }[];
   recommended_actions: Record<string, string>;
+}
+
+// ---------------------------------------------------------------- ingestion
+
+export interface DatasetItem {
+  id: number;
+  name: string;
+  file_type: string;
+  kind: string;
+  status: string;
+  rows_total: number;
+  rows_accepted: number;
+  rows_rejected: number;
+  errors: { row: number; error: string; kind?: string }[];
+  summary: {
+    accepted?: Record<string, number>;
+    pipeline?: {
+      accounts_rescored: number;
+      stub_accounts_created: number;
+      clusters_detected: number;
+      cluster_ids: string[];
+    };
+  };
+  created_at: string;
+}
+
+export interface SystemMode {
+  mode: "demo" | "uploaded";
+  datasets: number;
+  uploaded_accounts: number;
+}
+
+// ---------------------------------------------------------------- search
+
+export interface SearchResult {
+  type: "account" | "case" | "property" | "device" | "ip" | "guest" | "intel";
+  id: string;
+  label: string;
+  sub: string;
+  risk_status?: RiskStatus;
+  link: string;
+}
+
+// ---------------------------------------------------------------- properties
+
+export interface PropertyRiskItem {
+  name: string;
+  city: string;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
+  bookings: number;
+  suspicious_bookings: number;
+  points_redeemed: number;
+  suspicious_points: number;
+  linked_accounts: { account_id: string; risk_score: number; risk_status: RiskStatus }[];
+  high_risk_accounts: number;
+  cluster_ids: string[];
+  risk_index: number;
+  recent_bookings: BookingItem[];
+}
+
+export interface BookingItem {
+  id: number;
+  account_id: string;
+  guest_name: string;
+  property_name: string;
+  booking_date: string;
+  points_used: number;
+  suspicious: boolean;
+}
+
+export interface DestinationRow {
+  country: string;
+  properties: number;
+  bookings: number;
+  suspicious_bookings: number;
+  points_redeemed: number;
+  suspicious_ratio: number;
+}
+
+export interface PropertyRiskResponse {
+  mode: string;
+  properties: PropertyRiskItem[];
+  destinations: DestinationRow[];
+  unmapped: string[];
+}
+
+// ---------------------------------------------------------------- economics
+
+export interface EconImpact {
+  mode: string;
+  point_value_usd: number;
+  points_at_risk: number;
+  usd_at_risk: number;
+  points_watchlist: number;
+  usd_watchlist: number;
+  suspicious_redemption_points: number;
+  suspicious_redemption_usd: number;
+  interdicted_points: number;
+  interdicted_usd: number;
+  confirmed_fraud_accounts: number;
+  confirmed_fraud_balance_points: number;
+  confirmed_fraud_balance_usd: number;
+  false_positive_accounts: number;
+  open_cases: number;
+  high_risk_accounts: number;
+  exposure_by_tier: { tier: string; accounts: number; high_risk: number; points_at_risk: number; usd_at_risk: number }[];
+  exposure_trend: { date: string; points: number; usd: number }[];
+  top_exposed_properties: { property: string; points: number; usd: number }[];
+  methodology: string[];
+}
+
+// ---------------------------------------------------------------- ecosystem
+
+export interface EcosystemTier {
+  tier: number;
+  name: string;
+  actor: string;
+  description: string;
+  signals: { signal: string; label: string; weight: number; triggered_count: number }[];
+  signal_triggers: number;
+  active_accounts: number;
+  dominant_accounts: number;
+  example_accounts: { account_id: string; risk_score: number; risk_status: RiskStatus }[];
+  intel_notes: number;
+}
+
+export interface EcosystemResponse {
+  mode: string;
+  tiers: EcosystemTier[];
+  total_accounts: number;
+  accounts_in_ecosystem: number;
+}
+
+// ---------------------------------------------------------------- graph entity
+
+export interface EntityDetail {
+  node_id: string;
+  node_type: string;
+  account?: Account;
+  devices?: { device_id: string; ip_address: string; suspicious: boolean }[];
+  bookings?: BookingItem[];
+  cases?: CaseItem[];
+  clusters?: ClusterMeta[];
+  recent_events?: EventItem[];
+  linked_accounts?: { account_id: string; risk_score: number; risk_status: RiskStatus; loyalty_tier: string; points_balance: number }[];
+  property?: { name: string; city?: string; country?: string };
+  suspicious?: boolean;
 }

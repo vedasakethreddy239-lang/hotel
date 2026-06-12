@@ -26,9 +26,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import models
+from auth import get_current_principal
 from database import Base, SessionLocal, engine, get_db
+from ingest import active_source
 from reports_gen import build_account_pdf, build_summary_pdf
-from risk import RECOMMENDED_ACTIONS, RISK_TIERS, SIGNALS, compute_risk, risk_status_for
+from risk import RECOMMENDED_ACTIONS, RISK_TIERS, SIGNALS, build_narrative, compute_risk, risk_status_for
+from routes_analytics import router as analytics_router
+from routes_ingest import router as ingest_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("loyaltyshield")
@@ -36,7 +40,9 @@ logger = logging.getLogger("loyaltyshield")
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="LoyaltyShield AI", version="1.0.0")
-api = APIRouter(prefix="/api")
+# All routes resolve a principal via the auth abstraction (see auth.py) so a
+# real authentication layer (JWT/OAuth2/SSO) can be added without route changes.
+api = APIRouter(prefix="/api", dependencies=[Depends(get_current_principal)])
 
 VERSION = "1.0.0"
 NOW_FMT = "%Y-%m-%dT%H:%M:%SZ"
@@ -142,7 +148,7 @@ def list_accounts(
         "loyalty_tier": models.Account.loyalty_tier,
     }
     col = sortable.get(sort_by, models.Account.risk_score)
-    q = db.query(models.Account)
+    q = db.query(models.Account).filter(models.Account.source == active_source(db))
     if search:
         q = q.filter(models.Account.account_id.ilike(f"%{search}%"))
     if risk_status:
@@ -167,9 +173,11 @@ def get_account(account_id: str, db: Session = Depends(get_db)):
     flags = json.loads(acc.signals or "{}")
     result = compute_risk(flags, acc.days_between_change_and_booking)
     cases = db.query(models.Case).filter(models.Case.account_id == account_id).all()
+    acc_dict = acc.to_dict()
     return {
-        **acc.to_dict(),
+        **acc_dict,
         "risk_explanation": result,
+        "narrative": build_narrative(acc_dict, result),
         "related_cases": [c.to_dict() for c in cases],
     }
 
@@ -182,7 +190,8 @@ def generate_account(db: Session = Depends(get_db)):
     consistent. Use the 'Reset to seed data' option to clear any
     on-demand accounts created during a demo session.
     """
-    total = db.query(func.count(models.Account.id)).scalar() or 0
+    total = db.query(func.count(models.Account.id)).filter(
+        models.Account.source == "demo").scalar() or 0
     if total >= 100:
         raise HTTPException(
             status_code=409,
@@ -344,10 +353,11 @@ def simulation_run(req: SimulationRequest):
 # ---------------------------------------------------------------- graph
 @api.get("/graph/clusters")
 def graph_clusters(db: Session = Depends(get_db)):
-    clusters = db.query(models.Cluster).all()
-    devices = db.query(models.AccountDevice).all()
-    bookings = db.query(models.Booking).all()
-    accounts = {a.account_id: a for a in db.query(models.Account).all()}
+    src = active_source(db)
+    clusters = db.query(models.Cluster).filter(models.Cluster.source == src).all()
+    devices = db.query(models.AccountDevice).filter(models.AccountDevice.source == src).all()
+    bookings = db.query(models.Booking).filter(models.Booking.source == src).all()
+    accounts = {a.account_id: a for a in db.query(models.Account).filter(models.Account.source == src).all()}
 
     cluster_members = {}
     for c in clusters:
@@ -523,12 +533,14 @@ def create_intel(req: ThreatIntelCreate, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------- dashboard
 @api.get("/dashboard/stats")
 def dashboard_stats(db: Session = Depends(get_db)):
-    accounts = db.query(models.Account).all()
+    src = active_source(db)
+    accounts = db.query(models.Account).filter(models.Account.source == src).all()
     cases = db.query(models.Case).all()
     total = len(accounts)
     high = sum(1 for a in accounts if a.risk_status == "High")
     open_cases = sum(1 for c in cases if c.status in ("New", "Investigating", "Escalated"))
-    flagged_bookings = db.query(func.count(models.Booking.id)).filter(models.Booking.suspicious == True).scalar()  # noqa: E712
+    flagged_bookings = db.query(func.count(models.Booking.id)).filter(
+        models.Booking.suspicious == True, models.Booking.source == src).scalar()  # noqa: E712
     avg = round(sum(a.risk_score for a in accounts) / max(1, total), 1)
 
     # risk distribution histogram (10-point buckets)
@@ -538,7 +550,8 @@ def dashboard_stats(db: Session = Depends(get_db)):
 
     # suspicious events over time (last 30 days, UTC dates)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
-    events = db.query(models.Event).filter(models.Event.timestamp >= cutoff).all()
+    events = db.query(models.Event).filter(models.Event.timestamp >= cutoff,
+                                           models.Event.source == src).all()
     by_day = {}
     for e in events:
         day = e.timestamp[:10]
@@ -553,18 +566,21 @@ def dashboard_stats(db: Session = Depends(get_db)):
         cases_by_severity[c.severity] = cases_by_severity.get(c.severity, 0) + 1
 
     type_freq = {}
-    for e in db.query(models.Event.event_type, func.count(models.Event.id)).group_by(models.Event.event_type).all():
+    for e in (db.query(models.Event.event_type, func.count(models.Event.id))
+              .filter(models.Event.source == src)
+              .group_by(models.Event.event_type).all()):
         type_freq[e[0]] = e[1]
 
     recent = (
         db.query(models.Event)
-        .filter(models.Event.severity.in_(["High", "Critical"]))
+        .filter(models.Event.severity.in_(["High", "Critical"]), models.Event.source == src)
         .order_by(models.Event.timestamp.desc())
         .limit(8)
         .all()
     )
 
     return {
+        "data_mode": src,
         "total_accounts": total,
         "high_risk_accounts": high,
         "open_investigations": open_cases,
@@ -604,6 +620,8 @@ def report_account(account_id: str, db: Session = Depends(get_db)):
 
 
 app.include_router(api)
+app.include_router(ingest_router)
+app.include_router(analytics_router)
 
 app.add_middleware(
     CORSMiddleware,

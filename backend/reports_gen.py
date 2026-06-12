@@ -61,9 +61,11 @@ def _header(story, ss, title, subtitle):
 
 
 def build_summary_pdf(db, report_type: str) -> BytesIO:
+    from ingest import active_source
+    src = active_source(db)
     ss = _styles()
     buf = BytesIO()
-    accounts = db.query(models.Account).all()
+    accounts = db.query(models.Account).filter(models.Account.source == src).all()
     cases = db.query(models.Case).all()
     intel = db.query(models.ThreatIntel).order_by(models.ThreatIntel.created_at.desc()).limit(10).all()
     high = [a for a in accounts if a.risk_status == "High"]

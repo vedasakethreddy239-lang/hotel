@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, FolderPlus, CheckCheck, FileDown } from "lucide-react";
+import { ArrowLeft, FolderPlus, CheckCheck, FileDown, Sparkles } from "lucide-react";
+import {
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
+} from "recharts";
 import { toast } from "sonner";
 import { api, downloadPdf } from "../lib/api";
 import { AccountDetailData, EventItem } from "../lib/types";
@@ -10,7 +13,9 @@ import { RiskGauge } from "../components/RiskGauge";
 import { SignalBreakdown } from "../components/SignalBreakdown";
 import { Timeline } from "../components/Timeline";
 import { CaseFormModal } from "../components/CaseFormModal";
-import { formatDate, formatPoints } from "../lib/utils";
+import { cn, formatDate, formatDateShort, formatPoints } from "../lib/utils";
+
+const SEVERITIES = ["All", "Low", "Medium", "High", "Critical"];
 
 export default function AccountDetail() {
   const { accountId } = useParams();
@@ -20,6 +25,7 @@ export default function AccountDetail() {
   const [showAll, setShowAll] = useState(false);
   const [caseModal, setCaseModal] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [sevFilter, setSevFilter] = useState("All");
 
   const load = () => {
     setLoading(true);
@@ -29,6 +35,21 @@ export default function AccountDetail() {
       .finally(() => setLoading(false));
   };
   useEffect(load, [accountId]);
+
+  const filteredEvents = useMemo(
+    () => (sevFilter === "All" ? events : events.filter((e) => e.severity === sevFilter)),
+    [events, sevFilter]
+  );
+
+  // cumulative risk progression: events ascending, running sum of risk deltas
+  const riskCurve = useMemo(() => {
+    const asc = [...events].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    let cum = 0;
+    return asc.map((e) => {
+      cum = Math.min(100, Math.max(0, cum + (e.risk_delta || 0)));
+      return { timestamp: e.timestamp, cumulative: cum, event: e.event_type };
+    });
+  }, [events]);
 
   if (loading) return <Loading label="Loading account…" />;
   if (!account) return <p className="text-sm text-red-400">Account not found.</p>;
@@ -131,11 +152,67 @@ export default function AccountDetail() {
         </div>
       </div>
 
+      {/* Why was this flagged? — plain-English narrative (Phase 4) */}
+      {account.narrative && (
+        <div className="card p-6 border-l-2 border-accent fade-up" data-testid="narrative-panel">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles size={16} strokeWidth={1.5} className="text-accent" />
+            <h3 className="text-lg font-medium tracking-tight">Why was this flagged?</h3>
+          </div>
+          <p className="text-sm text-txt-2 leading-relaxed max-w-4xl" data-testid="narrative-text">
+            {account.narrative}
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="card p-6 lg:col-span-2" data-testid="account-timeline-card">
-          <h3 className="text-lg font-medium tracking-tight mb-5">Event timeline ({events.length})</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <h3 className="text-lg font-medium tracking-tight">
+              Attack timeline ({filteredEvents.length}{sevFilter !== "All" ? ` of ${events.length}` : ""})
+            </h3>
+            <div className="flex flex-wrap gap-1.5" data-testid="timeline-severity-filters">
+              {SEVERITIES.map((s) => (
+                <button
+                  key={s}
+                  className={cn("btn-ghost !px-2.5 !py-1 !text-xs", sevFilter === s && "!border-accent !text-accent")}
+                  onClick={() => setSevFilter(s)}
+                  data-testid={`timeline-filter-${s.toLowerCase()}`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {riskCurve.length > 1 && (
+            <div className="mb-4" data-testid="risk-progression-chart">
+              <p className="meta-label mb-1">Risk progression (cumulative signal deltas)</p>
+              <ResponsiveContainer width="100%" height={110}>
+                <AreaChart data={riskCurve}>
+                  <defs>
+                    <linearGradient id="gCum" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#EF4444" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#EF4444" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                  <XAxis dataKey="timestamp" tick={{ fill: "#9CA3AF", fontSize: 9 }} axisLine={false}
+                    tickLine={false} tickFormatter={formatDateShort} minTickGap={40} />
+                  <YAxis domain={[0, 100]} tick={{ fill: "#9CA3AF", fontSize: 9 }} axisLine={false} tickLine={false} width={28} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#111823", border: "1px solid #1F2937", borderRadius: 8, color: "#F9FAFB", fontSize: 12 }}
+                    labelFormatter={(v: string) => formatDate(v)}
+                    formatter={(v: any) => [v, "Cumulative risk"]}
+                  />
+                  <Area type="stepAfter" dataKey="cumulative" stroke="#EF4444" fill="url(#gCum)" strokeWidth={1.5} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
           <div className="max-h-[480px] overflow-y-auto pr-1">
-            <Timeline events={events} />
+            <Timeline events={filteredEvents} />
           </div>
         </div>
 

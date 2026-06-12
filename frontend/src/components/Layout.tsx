@@ -1,30 +1,49 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Users, Share2, Radar, FolderSearch, FlaskConical,
   BookOpen, FileText, Settings as SettingsIcon, ShieldCheck,
-  PanelLeftClose, PanelLeftOpen, Sun, Moon,
+  PanelLeftClose, PanelLeftOpen, Sun, Moon, DatabaseZap, MapPinned,
+  CircleDollarSign, Layers,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useTheme } from "../App";
+import { api } from "../lib/api";
+import { SystemMode } from "../lib/types";
+import { GlobalSearch } from "./GlobalSearch";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/accounts", label: "Accounts", icon: Users },
   { to: "/graph", label: "Graph Analytics", icon: Share2 },
+  { to: "/properties", label: "Property Risk", icon: MapPinned },
+  { to: "/economics", label: "Economic Impact", icon: CircleDollarSign },
+  { to: "/ecosystem", label: "Ecosystem", icon: Layers },
   { to: "/threat-intel", label: "Threat Intelligence", icon: Radar },
   { to: "/cases", label: "Cases", icon: FolderSearch },
   { to: "/simulation", label: "Simulation Lab", icon: FlaskConical },
+  { to: "/ingestion", label: "Data Ingestion", icon: DatabaseZap },
   { to: "/research", label: "Research Framework", icon: BookOpen },
   { to: "/reports", label: "Reports", icon: FileText },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
+/** Notify the layout that the active data mode may have changed. */
+export const notifyModeChanged = () => window.dispatchEvent(new Event("ls-mode-refresh"));
+
 export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mode, setMode] = useState<SystemMode | null>(null);
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const current = NAV.find((n) => location.pathname.startsWith(n.to));
+
+  useEffect(() => {
+    const load = () => api.get("/system/mode").then((r) => setMode(r.data)).catch(() => {});
+    load();
+    window.addEventListener("ls-mode-refresh", load);
+    return () => window.removeEventListener("ls-mode-refresh", load);
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -81,14 +100,25 @@ export default function Layout() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 shrink-0 flex items-center justify-between gap-4 px-6 border-b border-line backdrop-blur-md bg-bg/80 z-10">
-          <div className="flex items-center gap-3 min-w-0">
+        <header className="h-16 shrink-0 flex items-center justify-between gap-4 px-6 border-b border-line backdrop-blur-md bg-bg/80 z-20">
+          <div className="flex items-center gap-3 min-w-0 shrink-0">
             <h1 className="font-heading text-lg font-medium tracking-tight truncate" data-testid="page-title">
               {current?.label ?? "LoyaltyShield AI"}
             </h1>
-            <span className="hidden sm:inline-flex meta-label border border-line rounded px-2 py-0.5">
-              Synthetic data
+            <span
+              data-testid="data-mode-badge"
+              className={cn(
+                "hidden sm:inline-flex meta-label border rounded px-2 py-0.5",
+                mode?.mode === "uploaded"
+                  ? "border-emerald-500/40 !text-emerald-400 bg-emerald-500/5"
+                  : "border-line"
+              )}
+            >
+              {mode?.mode === "uploaded" ? "Uploaded data" : "Synthetic data"}
             </span>
+          </div>
+          <div className="flex-1 hidden md:flex justify-center px-4">
+            <GlobalSearch />
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <button
@@ -103,7 +133,7 @@ export default function Layout() {
               <div className="grid place-items-center w-9 h-9 rounded-full bg-violet-500/15 text-violet-400 text-xs font-semibold">
                 AC
               </div>
-              <div className="hidden md:block leading-tight">
+              <div className="hidden xl:block leading-tight">
                 <div className="text-sm font-medium">Avery Chen</div>
                 <div className="text-xs text-txt-3">Senior Fraud Analyst</div>
               </div>
@@ -113,6 +143,11 @@ export default function Layout() {
 
         <main className="flex-1 overflow-y-auto p-6" data-testid="main-content">
           <Outlet />
+          <footer className="mt-10 pt-4 border-t border-line" data-testid="footer-disclaimer">
+            <p className="font-mono text-[11px] text-txt-3 tracking-wide">
+              Research Prototype – Local Authorized Environment – Authentication omitted for demonstration purposes.
+            </p>
+          </footer>
         </main>
       </div>
     </div>

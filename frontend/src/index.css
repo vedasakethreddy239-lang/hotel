@@ -86,3 +86,56 @@ body {
 .fade-up {
   animation: fadeUp 0.35s ease-out both;
 }
+
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.skeleton {
+  @apply rounded-md;
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--line) 50%,
+    var(--surface-2) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+/* Leaflet dark-theme harmonization */
+.leaflet-container {
+  background: var(--surface-2);
+  font-family: inherit;
+}
+.dark .leaflet-tile {
+  filter: brightness(0.65) invert(1) contrast(2.6) hue-rotate(190deg) saturate(0.4) brightness(0.8);
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--surface);
+  color: var(--text-1);
+  border: 1px solid var(--line);
+}
+.dark .leaflet-control-attribution {
+  background: rgba(17, 24, 35, 0.8) !important;
+  color: var(--text-3) !important;
+}
+.dark .leaflet-control-zoom a {
+  background: var(--surface);
+  color: var(--text-1);
+  border-color: var(--line);
+}

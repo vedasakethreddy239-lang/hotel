@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Radar, X } from "lucide-react";
+import { Plus, Radar, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { ThreatIntelItem } from "../lib/types";
@@ -27,9 +27,23 @@ export default function ThreatIntel() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: "", category: CATEGORIES[0], severity: "Medium", summary: "", ecosystem_tier: 1 });
   const [filter, setFilter] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   const load = () => api.get("/threat-intel").then((r) => setItems(r.data));
   useEffect(() => { load(); }, []);
+
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      const r = await api.post("/threat-intel/generate");
+      toast.success(`Generated from live data: ${r.data.title}`);
+      load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail ?? "Generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const submit = async () => {
     if (!form.title.trim()) { toast.error("Title is required"); return; }
@@ -66,9 +80,15 @@ export default function ThreatIntel() {
             </button>
           ))}
         </div>
-        <button className="btn-primary" onClick={() => setShowForm(true)} data-testid="add-intel-btn">
-          <Plus size={15} strokeWidth={1.5} /> Add intel note
-        </button>
+        <div className="flex gap-2">
+          <button className="btn-ghost" onClick={generate} disabled={generating} data-testid="generate-intel-btn">
+            <Sparkles size={15} strokeWidth={1.5} className={generating ? "animate-pulse" : ""} />
+            {generating ? "Analyzing…" : "Generate from live data"}
+          </button>
+          <button className="btn-primary" onClick={() => setShowForm(true)} data-testid="add-intel-btn">
+            <Plus size={15} strokeWidth={1.5} /> Add intel note
+          </button>
+        </div>
       </div>
 
       {filtered.length === 0 ? (

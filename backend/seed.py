@@ -40,6 +40,18 @@ PROPERTIES = [
     "Palm Oasis Cancun", "Harbor Lights Sydney", "Royal Orchid Bangkok",
     "Liberty Grand New York",
 ]
+PROPERTY_GEO = {
+    "Grand Meridian Dubai": ("Dubai", "UAE", 25.2048, 55.2708),
+    "Azure Palms Maldives": ("Malé", "Maldives", 4.1755, 73.5093),
+    "The Kensington London": ("London", "United Kingdom", 51.4994, -0.1746),
+    "Sakura Imperial Tokyo": ("Tokyo", "Japan", 35.6762, 139.6503),
+    "Marina Bay Vista Singapore": ("Singapore", "Singapore", 1.2834, 103.8607),
+    "Alpine Crown Zurich": ("Zurich", "Switzerland", 47.3769, 8.5417),
+    "Palm Oasis Cancun": ("Cancun", "Mexico", 21.1619, -86.8515),
+    "Harbor Lights Sydney": ("Sydney", "Australia", -33.8688, 151.2093),
+    "Royal Orchid Bangkok": ("Bangkok", "Thailand", 13.7563, 100.5018),
+    "Liberty Grand New York": ("New York", "United States", 40.7128, -74.0060),
+}
 GUESTS = [
     "Alex Mercer", "Jordan Vale", "Riley Stone", "Casey Brook", "Morgan Hale",
     "Quinn Forster", "Avery Lane", "Dakota Reyes", "Skyler Nash", "Rowan Pike",
@@ -336,6 +348,10 @@ def run():
         db.add_all(devices)
         db.add_all(bookings)
         db.add_all(clusters)
+        db.add_all([
+            models.Property(name=n, city=g[0], country=g[1], latitude=g[2], longitude=g[3], source="demo")
+            for n, g in PROPERTY_GEO.items()
+        ])
         db.commit()
         print(f"Seeded: {len(accounts)} accounts, 1000 events, 30 cases, 25 intel notes, {len(clusters)} clusters")
     finally:
